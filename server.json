@@ -1,0 +1,32 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "eu.ansvar/finnish-competition-mcp",
+  "description": "Query KKV (Kilpailu- ja kuluttajavirasto — Finnish Competition and Consumer Authority) enforcement decisions, merger control cases, and sector enforcement",
+  "repository": {
+    "url": "https://github.com/Ansvar-Systems/finnish-competition-mcp",
+    "source": "github"
+  },
+  "homepage": "https://ansvar.eu",
+  "version": "0.1.0",
+  "license": "Apache-2.0",
+  "keywords": [
+    "kkv",
+    "kilpailu-ja-kuluttajavirasto",
+    "finnish-competition",
+    "competition-law",
+    "finland",
+    "compliance",
+    "mcp",
+    "ansvar"
+  ],
+  "packages": [
+    {
+      "registryType": "npm",
+      "identifier": "@ansvar/finnish-competition-mcp",
+      "version": "0.1.0",
+      "transport": {
+        "type": "stdio"
+      }
+    }
+  ]
+}

@@ -281,11 +281,18 @@ async function discoverUrlsFromListings(
     // Each entry contains an <a> linking to the detail page. We look for
     // links whose href starts with the category path.
     $("a[href]").each((_i, el) => {
-      const href = $(el).attr("href");
-      if (!href) return;
+      const rawHref = $(el).attr("href");
+      if (!rawHref) return;
+
+      // Normalise: kkv.fi returns absolute URLs (https://www.kkv.fi/...),
+      // strip the origin so the rest of the matching logic works with
+      // relative paths consistently.
+      const href = rawHref.startsWith(BASE_URL)
+        ? rawHref.slice(BASE_URL.length)
+        : rawHref;
 
       // Match links that point to individual decision pages under this category.
-      // These are relative paths like /paatokset/kilpailuasiat/yrityskauppavalvonta/kkv-246-14-00-10-2026/
+      // Paths look like /paatokset/kilpailuasiat/yrityskauppavalvonta/kkv-246-14-00-10-2026/
       // Exclude the category index itself and pagination links.
       if (
         href.startsWith(category.path) &&

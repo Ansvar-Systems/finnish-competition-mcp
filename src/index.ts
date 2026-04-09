@@ -27,6 +27,7 @@ import {
   searchMergers,
   getMerger,
   listSectors,
+  getDataFreshness,
 } from "./db.js";
 import { buildCitation } from "./citation.js";
 
@@ -150,6 +151,26 @@ const TOOLS = [
     },
   },
   {
+    name: "fi_comp_list_sources",
+    description:
+      "List the official KKV source URLs used to populate this dataset, including enforcement decisions and merger control registers.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
+    name: "fi_comp_check_data_freshness",
+    description:
+      "Return data freshness metadata: record counts and latest decision/merger dates ingested. Useful for determining how current the dataset is.",
+    inputSchema: {
+      type: "object" as const,
+      properties: {},
+      required: [],
+    },
+  },
+  {
     name: "fi_comp_about",
     description:
       "Return metadata about this MCP server: version, data source, coverage, and tool list.",
@@ -185,6 +206,15 @@ const SearchMergersArgs = z.object({
 const GetMergerArgs = z.object({
   case_number: z.string().min(1),
 });
+
+// --- _meta block shared across all responses ---------------------------------
+
+const RESPONSE_META = {
+  disclaimer:
+    "This data is provided for informational purposes only and does not constitute legal advice. Always verify decisions against official KKV publications.",
+  copyright: "KKV (Kilpailu- ja kuluttajavirasto) — Finnish Competition and Consumer Authority",
+  source_url: "https://www.kkv.fi/",
+};
 
 // --- Helper ------------------------------------------------------------------
 
@@ -228,7 +258,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           outcome: parsed.outcome,
           limit: parsed.limit,
         });
-        return textContent({ results, count: results.length });
+        return textContent({ results, count: results.length, _meta: RESPONSE_META });
       }
 
       case "fi_comp_get_decision": {
@@ -247,6 +277,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             { case_number: parsed.case_number },
             decisionRecord.url as string | undefined,
           ),
+          _meta: RESPONSE_META,
         });
       }
 
@@ -258,7 +289,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           outcome: parsed.outcome,
           limit: parsed.limit,
         });
-        return textContent({ results, count: results.length });
+        return textContent({ results, count: results.length, _meta: RESPONSE_META });
       }
 
       case "fi_comp_get_merger": {
@@ -277,12 +308,41 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             { case_number: parsed.case_number },
             mergerRecord.url as string | undefined,
           ),
+          _meta: RESPONSE_META,
         });
       }
 
       case "fi_comp_list_sectors": {
         const sectors = listSectors();
-        return textContent({ sectors, count: sectors.length });
+        return textContent({ sectors, count: sectors.length, _meta: RESPONSE_META });
+      }
+
+      case "fi_comp_list_sources": {
+        return textContent({
+          sources: [
+            {
+              name: "KKV enforcement decisions",
+              url: "https://www.kkv.fi/ratkaisut-ja-julkaisut/ratkaisut/kilpailuasiat/",
+              description: "Abuse of dominance, cartel, and sector inquiry decisions",
+            },
+            {
+              name: "KKV merger control decisions",
+              url: "https://www.kkv.fi/ratkaisut-ja-julkaisut/ratkaisut/yrityskaupat/",
+              description: "Merger control (yrityskauppavalvonta) Phase I and Phase II decisions",
+            },
+            {
+              name: "KKV official website",
+              url: "https://www.kkv.fi/",
+              description: "Kilpailu- ja kuluttajavirasto — Finnish Competition and Consumer Authority",
+            },
+          ],
+          _meta: RESPONSE_META,
+        });
+      }
+
+      case "fi_comp_check_data_freshness": {
+        const freshness = getDataFreshness();
+        return textContent({ ...freshness, _meta: RESPONSE_META });
       }
 
       case "fi_comp_about": {
@@ -293,11 +353,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             "KKV (Kilpailu- ja kuluttajavirasto — Finnish Competition and Consumer Authority) MCP server. Provides access to Finnish competition law enforcement decisions, merger control cases, and sector enforcement data under the KilpailuL (Kilpailulaki / Competition Act).",
           data_source: "KKV (https://www.kkv.fi/)",
           coverage: {
-            decisions: "Abuse of dominance (maaraavasema), cartel enforcement (kartelli), and sector inquiries",
-            mergers: "Merger control decisions (yrityskauppavalvonta) — Phase I and Phase II",
-            sectors: "Digital economy, food retail, energy, telecommunications, financial services, healthcare, transport",
+            decisions:
+              "Abuse of dominance (määräävä markkina-asema), cartel enforcement (kartelli), and sector inquiries",
+            mergers:
+              "Merger control decisions (yrityskauppavalvonta) — Phase I and Phase II",
+            sectors:
+              "Digital economy, food retail, energy, telecommunications, financial services, healthcare, transport",
           },
           tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
+          _meta: RESPONSE_META,
         });
       }
 

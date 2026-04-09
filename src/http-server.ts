@@ -29,7 +29,9 @@ import {
   searchMergers,
   getMerger,
   listSectors,
+  getDataFreshness,
 } from "./db.js";
+import { buildCitation } from "./citation.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -47,23 +49,40 @@ try {
   // fallback
 }
 
+// --- _meta block shared across all responses ---------------------------------
+
+const RESPONSE_META = {
+  disclaimer:
+    "This data is provided for informational purposes only and does not constitute legal advice. Always verify decisions against official KKV publications.",
+  copyright: "KKV (Kilpailu- ja kuluttajavirasto) — Finnish Competition and Consumer Authority",
+  source_url: "https://www.kkv.fi/",
+};
+
 // --- Tool definitions (shared with index.ts) ---------------------------------
 
 const TOOLS = [
   {
     name: "fi_comp_search_decisions",
     description:
-      "Full-text search across Bundeskartellamt enforcement decisions (abuse of dominance, cartel, sector inquiries). Returns matching decisions with case number, parties, outcome, fine amount, and GWB articles cited.",
+      "Full-text search across KKV (Kilpailu- ja kuluttajavirasto) enforcement decisions (abuse of dominance, cartel, sector inquiries). Returns matching decisions with case number, parties, outcome, fine amount, and KilpailuL articles cited.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        query: { type: "string", description: "Search query (e.g., 'Marktmissbrauch', 'Facebook', 'Preisabsprache')" },
+        query: {
+          type: "string",
+          description:
+            "Search query in Finnish or English (e.g., 'määräävä markkina-asema', 'kartelli', 'hintayhteistyö', 'abuse of dominance')",
+        },
         type: {
           type: "string",
           enum: ["abuse_of_dominance", "cartel", "merger", "sector_inquiry"],
           description: "Filter by decision type. Optional.",
         },
-        sector: { type: "string", description: "Filter by sector ID. Optional." },
+        sector: {
+          type: "string",
+          description:
+            "Filter by sector ID (e.g., 'digital_economy', 'food_retail', 'energy'). Optional.",
+        },
         outcome: {
           type: "string",
           enum: ["prohibited", "cleared", "cleared_with_conditions", "fine"],
@@ -77,11 +96,14 @@ const TOOLS = [
   {
     name: "fi_comp_get_decision",
     description:
-      "Get a specific Bundeskartellamt decision by case number (e.g., 'B6-22/16').",
+      "Get a specific KKV decision by case number (e.g., 'KKV/123/14.00.00/2022', 'KKV/456/14.00.00/2021').",
     inputSchema: {
       type: "object" as const,
       properties: {
-        case_number: { type: "string", description: "Case number (e.g., 'B6-22/16', 'B2-94/12')" },
+        case_number: {
+          type: "string",
+          description: "KKV case number (e.g., 'KKV/123/14.00.00/2022')",
+        },
       },
       required: ["case_number"],
     },
@@ -89,11 +111,15 @@ const TOOLS = [
   {
     name: "fi_comp_search_mergers",
     description:
-      "Search Bundeskartellamt merger control decisions (Fusionskontrolle).",
+      "Search KKV merger control decisions (yrityskauppavalvonta). Returns merger cases with acquiring party, target, sector, and outcome.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        query: { type: "string", description: "Search query (e.g., 'Vonovia', 'Energieversorgung')" },
+        query: {
+          type: "string",
+          description:
+            "Search query in Finnish or English (e.g., 'yrityskauppa', 'fuusio', 'teleoperaattori', 'merger')",
+        },
         sector: { type: "string", description: "Filter by sector ID. Optional." },
         outcome: {
           type: "string",
@@ -108,11 +134,14 @@ const TOOLS = [
   {
     name: "fi_comp_get_merger",
     description:
-      "Get a specific merger control decision by case number (e.g., 'B1-35/21').",
+      "Get a specific KKV merger control decision by case number.",
     inputSchema: {
       type: "object" as const,
       properties: {
-        case_number: { type: "string", description: "Merger case number (e.g., 'B1-35/21')" },
+        case_number: {
+          type: "string",
+          description: "KKV merger case number",
+        },
       },
       required: ["case_number"],
     },
@@ -120,7 +149,19 @@ const TOOLS = [
   {
     name: "fi_comp_list_sectors",
     description:
-      "List all sectors with Bundeskartellamt enforcement activity, including decision and merger counts.",
+      "List all sectors with KKV enforcement activity, including decision counts and merger counts per sector.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "fi_comp_list_sources",
+    description:
+      "List the official KKV source URLs used to populate this dataset, including enforcement decisions and merger control registers.",
+    inputSchema: { type: "object" as const, properties: {}, required: [] },
+  },
+  {
+    name: "fi_comp_check_data_freshness",
+    description:
+      "Return data freshness metadata: record counts and latest decision/merger dates ingested. Useful for determining how current the dataset is.",
     inputSchema: { type: "object" as const, properties: {}, required: [] },
   },
   {
@@ -195,7 +236,7 @@ function createMcpServer(): Server {
             outcome: parsed.outcome,
             limit: parsed.limit,
           });
-          return textContent({ results, count: results.length });
+          return textContent({ results, count: results.length, _meta: RESPONSE_META });
         }
 
         case "fi_comp_get_decision": {
@@ -204,7 +245,18 @@ function createMcpServer(): Server {
           if (!decision) {
             return errorContent(`Decision not found: ${parsed.case_number}`);
           }
-          return textContent(decision);
+          const decisionRecord = decision as Record<string, unknown>;
+          return textContent({
+            ...decisionRecord,
+            _citation: buildCitation(
+              String(decisionRecord.case_number ?? parsed.case_number),
+              String(decisionRecord.title ?? decisionRecord.case_number ?? parsed.case_number),
+              "fi_comp_get_decision",
+              { case_number: parsed.case_number },
+              decisionRecord.url as string | undefined,
+            ),
+            _meta: RESPONSE_META,
+          });
         }
 
         case "fi_comp_search_mergers": {
@@ -215,7 +267,7 @@ function createMcpServer(): Server {
             outcome: parsed.outcome,
             limit: parsed.limit,
           });
-          return textContent({ results, count: results.length });
+          return textContent({ results, count: results.length, _meta: RESPONSE_META });
         }
 
         case "fi_comp_get_merger": {
@@ -224,12 +276,51 @@ function createMcpServer(): Server {
           if (!merger) {
             return errorContent(`Merger case not found: ${parsed.case_number}`);
           }
-          return textContent(merger);
+          const mergerRecord = merger as Record<string, unknown>;
+          return textContent({
+            ...mergerRecord,
+            _citation: buildCitation(
+              String(mergerRecord.case_number ?? parsed.case_number),
+              String(mergerRecord.title ?? mergerRecord.case_number ?? parsed.case_number),
+              "fi_comp_get_merger",
+              { case_number: parsed.case_number },
+              mergerRecord.url as string | undefined,
+            ),
+            _meta: RESPONSE_META,
+          });
         }
 
         case "fi_comp_list_sectors": {
           const sectors = listSectors();
-          return textContent({ sectors, count: sectors.length });
+          return textContent({ sectors, count: sectors.length, _meta: RESPONSE_META });
+        }
+
+        case "fi_comp_list_sources": {
+          return textContent({
+            sources: [
+              {
+                name: "KKV enforcement decisions",
+                url: "https://www.kkv.fi/ratkaisut-ja-julkaisut/ratkaisut/kilpailuasiat/",
+                description: "Abuse of dominance, cartel, and sector inquiry decisions",
+              },
+              {
+                name: "KKV merger control decisions",
+                url: "https://www.kkv.fi/ratkaisut-ja-julkaisut/ratkaisut/yrityskaupat/",
+                description: "Merger control (yrityskauppavalvonta) Phase I and Phase II decisions",
+              },
+              {
+                name: "KKV official website",
+                url: "https://www.kkv.fi/",
+                description: "Kilpailu- ja kuluttajavirasto — Finnish Competition and Consumer Authority",
+              },
+            ],
+            _meta: RESPONSE_META,
+          });
+        }
+
+        case "fi_comp_check_data_freshness": {
+          const freshness = getDataFreshness();
+          return textContent({ ...freshness, _meta: RESPONSE_META });
         }
 
         case "fi_comp_about": {
@@ -237,9 +328,18 @@ function createMcpServer(): Server {
             name: SERVER_NAME,
             version: pkgVersion,
             description:
-              "KKV (Kilpailu- ja kuluttajavirasto — Finnish Competition and Consumer Authority) MCP server. Provides access to German competition law enforcement decisions, merger control cases, and sector enforcement data under the KilpailuL (Finnish Competition Act).",
+              "KKV (Kilpailu- ja kuluttajavirasto — Finnish Competition and Consumer Authority) MCP server. Provides access to Finnish competition law enforcement decisions, merger control cases, and sector enforcement data under the KilpailuL (Kilpailulaki / Competition Act).",
             data_source: "KKV (https://www.kkv.fi/)",
+            coverage: {
+              decisions:
+                "Abuse of dominance (määräävä markkina-asema), cartel enforcement (kartelli), and sector inquiries",
+              mergers:
+                "Merger control decisions (yrityskauppavalvonta) — Phase I and Phase II",
+              sectors:
+                "Digital economy, food retail, energy, telecommunications, financial services, healthcare, transport",
+            },
             tools: TOOLS.map((t) => ({ name: t.name, description: t.description })),
+            _meta: RESPONSE_META,
           });
         }
 

@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "authority": {
+    "name": "KKV",
+    "full_name": "Kilpailu- ja kuluttajavirasto",
+    "name_en": "Finnish Competition and Consumer Authority",
+    "country": "FI",
+    "url": "https://www.kkv.fi/"
+  },
+  "corpus": {
+    "decisions": {
+      "types": ["abuse_of_dominance", "cartel", "sector_inquiry"],
+      "coverage": "partial",
+      "notes": "Major published KKV enforcement decisions under KilpailuL (Kilpailulaki 948/2011)"
+    },
+    "mergers": {
+      "types": ["cleared_phase1", "cleared_with_conditions", "prohibited"],
+      "coverage": "partial",
+      "notes": "KKV merger control (yrityskauppavalvonta) Phase I and Phase II decisions"
+    },
+    "sectors": [
+      "digital_economy",
+      "food_retail",
+      "energy",
+      "telecommunications",
+      "financial_services",
+      "healthcare",
+      "transport"
+    ]
+  },
+  "sources": [
+    {
+      "name": "KKV enforcement decisions",
+      "url": "https://www.kkv.fi/ratkaisut-ja-julkaisut/ratkaisut/kilpailuasiat/",
+      "type": "decisions"
+    },
+    {
+      "name": "KKV merger control decisions",
+      "url": "https://www.kkv.fi/ratkaisut-ja-julkaisut/ratkaisut/yrityskaupat/",
+      "type": "mergers"
+    }
+  ],
+  "limitations": [
+    "Not all KKV decisions are published; confidential proceedings are excluded",
+    "gwb_articles column is a legacy artefact; will be renamed to kilpailul_articles in next ingest rebuild",
+    "Dataset is static and rebuilt periodically — use fi_comp_check_data_freshness for currency"
+  ]
+}

@@ -2,8 +2,8 @@
  * SQLite database access layer for the Finnish Competition (KKV) MCP server.
  *
  * Schema:
- *   - decisions    — Bundeskartellamt enforcement decisions (abuse of dominance, cartels, sector inquiries)
- *   - mergers      — Merger control decisions (Fusionskontrolle)
+ *   - decisions    — KKV (Kilpailu- ja kuluttajavirasto) enforcement decisions (abuse of dominance, cartels, sector inquiries)
+ *   - mergers      — Merger control decisions (yrityskauppavalvonta)
  *   - sectors      — Sectors with enforcement activity
  *
  * FTS5 virtual tables back full-text search on decisions and mergers.
@@ -277,4 +277,34 @@ export function listSectors(): Sector[] {
   return db
     .prepare("SELECT * FROM sectors ORDER BY decision_count DESC, merger_count DESC")
     .all() as Sector[];
+}
+
+// --- Data freshness -----------------------------------------------------------
+
+export interface DataFreshness {
+  decisions_count: number;
+  mergers_count: number;
+  decisions_latest_date: string | null;
+  mergers_latest_date: string | null;
+  sources: string[];
+}
+
+export function getDataFreshness(): DataFreshness {
+  const db = getDb();
+  const dRow = db
+    .prepare("SELECT COUNT(*) as cnt, MAX(date) as latest FROM decisions")
+    .get() as { cnt: number; latest: string | null };
+  const mRow = db
+    .prepare("SELECT COUNT(*) as cnt, MAX(date) as latest FROM mergers")
+    .get() as { cnt: number; latest: string | null };
+  return {
+    decisions_count: dRow.cnt,
+    mergers_count: mRow.cnt,
+    decisions_latest_date: dRow.latest,
+    mergers_latest_date: mRow.latest,
+    sources: [
+      "https://www.kkv.fi/ratkaisut-ja-julkaisut/ratkaisut/kilpailuasiat/",
+      "https://www.kkv.fi/ratkaisut-ja-julkaisut/ratkaisut/yrityskaupat/",
+    ],
+  };
 }

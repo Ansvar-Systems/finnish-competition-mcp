@@ -237,7 +237,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!decision) {
           return errorContent(`Decision not found: ${parsed.case_number}`);
         }
-        const decisionRecord = decision as Record<string, unknown>;
+        const decisionRecord = decision as unknown as Record<string, unknown>;
         return textContent({
           ...decisionRecord,
           _citation: buildCitation(
@@ -267,7 +267,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!merger) {
           return errorContent(`Merger case not found: ${parsed.case_number}`);
         }
-        const mergerRecord = merger as Record<string, unknown>;
+        const mergerRecord = merger as unknown as Record<string, unknown>;
         return textContent({
           ...mergerRecord,
           _citation: buildCitation(

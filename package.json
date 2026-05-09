@@ -2,11 +2,11 @@
   "name": "@ansvar/finnish-competition-mcp",
   "version": "0.1.0",
   "mcpName": "eu.ansvar/finnish-competition-mcp",
-  "description": "KKV (Finnish Competition and Consumer Authority / Kilpailu- ja kuluttajavirasto) MCP server — enforcement decisions, merger control, and sector enforcement",
+  "description": "KKV (Finnish Competition and Consumer Authority / Kilpailu- ja kuluttajavirasto) MCP server \u2014 enforcement decisions, merger control, and sector enforcement",
   "type": "module",
-  "main": "dist/src/index.js",
+  "main": "dist/index.js",
   "bin": {
-    "finnish-competition-mcp": "dist/src/index.js"
+    "finnish-competition-mcp": "dist/index.js"
   },
   "files": [
     "dist",
@@ -41,11 +41,11 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/http-server.ts",
-    "start": "node dist/src/http-server.js",
+    "start": "node dist/http-server.js",
     "seed": "npx tsx scripts/seed-sample.ts",
-    "ingest": "npx tsx scripts/ingest-kkv.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "lint": "tsc --noEmit"
+    "lint": "tsc --noEmit",
+    "test:contract": "echo \"No contract tests yet\" && exit 0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.12",

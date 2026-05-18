@@ -181,26 +181,33 @@ export function getDb(): Database.Database {
  * which gives stem-ish recall without a custom tokenizer.
  *
  * Pass-through (no rewrite) when the query already contains FTS5 operators:
- *   AND, OR, NOT, "..." (phrase), * (prefix), ^ (column-prefix), : (column scope).
+ *   AND, OR, NOT, NEAR, "..." (phrase), * (prefix), ^ (column-prefix),
+ *   : (column scope), () (grouping), - (negation).
  *
  * Empirically validated on KKV prod DB 2026-05-18:
  *   decisions_fts MATCH 'kilpailu' → 237 rows; 'kilpailu*' → 585 rows (+348)
  *   decisions_fts MATCH 'kilpailulain' → 69; 'kilpailulain*' → 124 (+55)
  *   decisions_fts MATCH 'hankinta' → 59; 'hankinta*' → 183 (+124)
  *
- * Mirrors the pattern from finnish-financial-regulation-mcp PR #22.
+ * Mirrors the pattern from finnish-financial-regulation-mcp PR #22 (which
+ * uses the consolidated operator-passthrough regex; fi-comp originally
+ * had a narrower form that missed NEAR / parens / negation).
  */
 export function rewriteQueryForFts(q: string): string {
   if (!q) return q;
+  const trimmed = q.trim();
+  if (trimmed.length === 0) return trimmed;
   // If the query already uses FTS5 operator syntax, don't rewrite — caller
   // is asking for something specific and we should not surprise them.
-  if (/[*"^:]/.test(q)) return q;
-  if (/\b(AND|OR|NOT)\b/.test(q)) return q;
+  // Includes NEAR (multi-token proximity), parens (grouping), and `-` (negation).
+  if (/(\bAND\b|\bOR\b|\bNOT\b|\bNEAR\b|["*:\^()-])/.test(trimmed)) {
+    return trimmed;
+  }
 
   // Split on whitespace; append `*` to every bare token that is alphanumeric
   // (+ a small set of word characters that show up in Finnish/EN compounds).
   // Punctuation-only tokens are dropped — FTS5 ignores them anyway.
-  return q
+  return trimmed
     .split(/\s+/)
     .map((tok) => {
       if (!tok) return tok;

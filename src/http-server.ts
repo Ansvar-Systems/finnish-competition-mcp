@@ -31,7 +31,7 @@ import {
   listSectors,
   deriveKkvFallbackUrl,
 } from "./db.js";
-import { buildCitation } from "./citation.js";
+import { buildCitation, buildProvenanceCitation } from "./citation.js";
 
 // Publisher / license metadata for the `_meta` envelope on tool responses.
 // Mirrors the manifest attribution contract (Phase 1 PR #673):
@@ -207,16 +207,17 @@ function createMcpServer(): Server {
             outcome: parsed.outcome,
             limit: parsed.limit,
           });
+          // Per spec §6: every search result carries the provenance envelope
+          // on `_citation`. `deriveKkvFallbackUrl` guarantees a non-empty
+          // source_url so buildProvenanceCitation never refuses here.
           const enriched = results.map((d) => {
             const sourceUrl = d.source_url ?? deriveKkvFallbackUrl(d.case_number);
             return {
               ...d,
-              _citation: buildCitation(
-                d.case_number,
-                d.title || d.case_number,
-                "fi_comp_get_decision",
-                { case_number: d.case_number },
-                sourceUrl,
+              _citation: buildProvenanceCitation(
+                { source_url: sourceUrl },
+                META.publisher,
+                META.license,
               ),
             };
           });
@@ -234,9 +235,16 @@ function createMcpServer(): Server {
             return errorContent(`Decision not found: ${parsed.case_number}`);
           }
           const sourceUrl = decision.source_url ?? deriveKkvFallbackUrl(decision.case_number);
+          // Per spec §6: provenance envelope on `_citation`; deterministic
+          // canonical_ref envelope on `_entity_citation` (law-mcp §4.9c).
           return textContent({
             ...decision,
-            _citation: buildCitation(
+            _citation: buildProvenanceCitation(
+              { source_url: sourceUrl },
+              META.publisher,
+              META.license,
+            ),
+            _entity_citation: buildCitation(
               decision.case_number,
               decision.title || decision.case_number,
               "fi_comp_get_decision",
@@ -259,12 +267,10 @@ function createMcpServer(): Server {
             const sourceUrl = m.source_url ?? deriveKkvFallbackUrl(m.case_number);
             return {
               ...m,
-              _citation: buildCitation(
-                m.case_number,
-                m.title || m.case_number,
-                "fi_comp_get_merger",
-                { case_number: m.case_number },
-                sourceUrl,
+              _citation: buildProvenanceCitation(
+                { source_url: sourceUrl },
+                META.publisher,
+                META.license,
               ),
             };
           });
@@ -284,7 +290,12 @@ function createMcpServer(): Server {
           const sourceUrl = merger.source_url ?? deriveKkvFallbackUrl(merger.case_number);
           return textContent({
             ...merger,
-            _citation: buildCitation(
+            _citation: buildProvenanceCitation(
+              { source_url: sourceUrl },
+              META.publisher,
+              META.license,
+            ),
+            _entity_citation: buildCitation(
               merger.case_number,
               merger.title || merger.case_number,
               "fi_comp_get_merger",

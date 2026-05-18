@@ -116,6 +116,7 @@ interface DecisionRow {
   fine_amount: number | null;
   gwb_articles: string;
   status: string;
+  source_url: string | null;
 }
 
 const decisions: DecisionRow[] = [
@@ -132,6 +133,7 @@ const decisions: DecisionRow[] = [
     fine_amount: null,
     gwb_articles: JSON.stringify(["KilpailuL 7 §"]),
     status: "final",
+    source_url: "https://www.kkv.fi/?s=KKV%2F123%2F14.00.00%2F2022",
   },
   {
     case_number: "KKV/456/14.00.00/2021",
@@ -146,6 +148,7 @@ const decisions: DecisionRow[] = [
     fine_amount: 2_500_000,
     gwb_articles: JSON.stringify(["KilpailuL 5 §", "SEUT 101"]),
     status: "appealed",
+    source_url: "https://www.kkv.fi/?s=KKV%2F456%2F14.00.00%2F2021",
   },
   {
     case_number: "KKV/789/14.00.00/2023",
@@ -160,6 +163,7 @@ const decisions: DecisionRow[] = [
     fine_amount: null,
     gwb_articles: JSON.stringify(["KilpailuL 7 §", "SEUT 102"]),
     status: "final",
+    source_url: "https://www.kkv.fi/?s=KKV%2F789%2F14.00.00%2F2023",
   },
   {
     case_number: "KKV/321/14.00.00/2022",
@@ -174,6 +178,7 @@ const decisions: DecisionRow[] = [
     fine_amount: null,
     gwb_articles: JSON.stringify(["KilpailuL 32 §"]),
     status: "final",
+    source_url: "https://www.kkv.fi/?s=KKV%2F321%2F14.00.00%2F2022",
   },
   {
     case_number: "KKV/654/14.00.00/2021",
@@ -188,19 +193,20 @@ const decisions: DecisionRow[] = [
     fine_amount: null,
     gwb_articles: JSON.stringify(["KilpailuL 7 §"]),
     status: "final",
+    source_url: "https://www.kkv.fi/?s=KKV%2F654%2F14.00.00%2F2021",
   },
 ];
 
 const insertDecision = db.prepare(`
   INSERT OR IGNORE INTO decisions
-    (case_number, title, date, type, sector, parties, summary, full_text, outcome, fine_amount, gwb_articles, status)
+    (case_number, title, date, type, sector, parties, summary, full_text, outcome, fine_amount, gwb_articles, status, source_url)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const insertDecisionsAll = db.transaction(() => {
   for (const d of decisions) {
-    insertDecision.run(d.case_number, d.title, d.date, d.type, d.sector, d.parties, d.summary, d.full_text, d.outcome, d.fine_amount, d.gwb_articles, d.status);
+    insertDecision.run(d.case_number, d.title, d.date, d.type, d.sector, d.parties, d.summary, d.full_text, d.outcome, d.fine_amount, d.gwb_articles, d.status, d.source_url);
   }
 });
 insertDecisionsAll();
@@ -217,6 +223,7 @@ interface MergerRow {
   full_text: string;
   outcome: string;
   turnover: number | null;
+  source_url: string | null;
 }
 
 const mergers: MergerRow[] = [
@@ -231,6 +238,7 @@ const mergers: MergerRow[] = [
     full_text: "KKV vastaanotti Telia Companyn ilmoituksen DNA Oyj:n osakkeiden lisaostosta. Koska osapuolten yhteenlaskettu EU-alueella saavutettu liikevaihto ylitti EU:n fuusiokontrolliaseksen (FKVO) kynnysarvot, asia siirrettiin EU:n komissiolle. KKV toimitti komissiolle nakemyksensa suomalaisille tietoliikennemarkkinoille kohdistuvista kilpailuvaikutuksista. Suomalaiset mobiilimarkkinat ovat oligopolistisia kolmella paatoimijalla (Telia/DNA, Elisa, Tele2). Yhdistyminen vahvistaisi Telian asemaa merkittavasti.",
     outcome: "cleared_with_conditions",
     turnover: 4_500_000_000,
+    source_url: "https://www.kkv.fi/?s=KKV%2FM.2022-001",
   },
   {
     case_number: "KKV/M.2021-005",
@@ -243,6 +251,7 @@ const mergers: MergerRow[] = [
     full_text: "KKV arvioi Mehilaisen Pihlajalinnan hankinnan kilpailuvaikutuksia yksityisilla terveyspalvelumarkkinoilla. Mehilainen ja Pihlajalinna ovat Suomen kaksi suurinta yksityista terveydenhuollon tarjoajaa. Yhdistyminen olisi luonut Suomen ylivoimaisesti suurimman yksityisen terveydenhuoltoyhtion. KKV tunnisti kilpailuongelmia useilla alueellisilla markkinoilla: lahinnea paikkakunnat, joissa kummallakin on laakariasema. Ehtoina yritykselle asetettiin vaatimus luopua tietyista klinikkayksikosta kilpailluimmilla alueilla. KKV:n paatos edellytti vahintaan kolmen klinikan myymista kilpailevalle toimijalle.",
     outcome: "cleared_with_conditions",
     turnover: 1_800_000_000,
+    source_url: "https://www.kkv.fi/?s=KKV%2FM.2021-005",
   },
   {
     case_number: "KKV/M.2023-003",
@@ -255,19 +264,20 @@ const mergers: MergerRow[] = [
     full_text: "KKV arvioi Helenin Lahti Energian kaukolammitosdivisioonan hankinnan. Helen Oy on Helsingin kaupungin omistama energiayhtio, joka tuottaa ja myy kaukolammitys- ja sahkopalveluita. Lahti Energia on vastaava alueellinen energiayhtio Paijat-Hameen alueella.\n\nKaukolammitomarkkinat ovat luonteeltaan alueellisia luonnollisia monopoleja — kiintean putkiverkoston kautta toimiva kaukolampo ei kilpaile eri alueilla suoraan. KKV totesi, etta Helsingin ja Lahden kaukolammitoverkot ovat maantieteellisesti erillisia eika yrityskauppa johda merkittavaan kilpailun heikkenemiseen milla tahansa relevantilla maantieteellisella markkinalla. Yrityskauppa hyvaksyttiin ensimmaisessa vaiheessa ilman ehtoja.",
     outcome: "cleared_phase1",
     turnover: 900_000_000,
+    source_url: "https://www.kkv.fi/?s=KKV%2FM.2023-003",
   },
 ];
 
 const insertMerger = db.prepare(`
   INSERT OR IGNORE INTO mergers
-    (case_number, title, date, sector, acquiring_party, target, summary, full_text, outcome, turnover)
+    (case_number, title, date, sector, acquiring_party, target, summary, full_text, outcome, turnover, source_url)
   VALUES
-    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 `);
 
 const insertMergersAll = db.transaction(() => {
   for (const m of mergers) {
-    insertMerger.run(m.case_number, m.title, m.date, m.sector, m.acquiring_party, m.target, m.summary, m.full_text, m.outcome, m.turnover);
+    insertMerger.run(m.case_number, m.title, m.date, m.sector, m.acquiring_party, m.target, m.summary, m.full_text, m.outcome, m.turnover, m.source_url);
   }
 });
 insertMergersAll();

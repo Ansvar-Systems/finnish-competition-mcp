@@ -29,7 +29,19 @@ import {
   searchMergers,
   getMerger,
   listSectors,
+  deriveKkvFallbackUrl,
 } from "./db.js";
+import { buildCitation } from "./citation.js";
+
+// Publisher / license metadata for the `_meta` envelope on tool responses.
+// Mirrors the manifest attribution contract (Phase 1 PR #673):
+//   publisher: kkv.fi
+//   license:   FI-Statutory-PD
+const META = {
+  publisher: "kkv.fi",
+  license: "FI-Statutory-PD",
+  source_url_base: "https://www.kkv.fi/",
+} as const;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -195,7 +207,24 @@ function createMcpServer(): Server {
             outcome: parsed.outcome,
             limit: parsed.limit,
           });
-          return textContent({ results, count: results.length });
+          const enriched = results.map((d) => {
+            const sourceUrl = d.source_url ?? deriveKkvFallbackUrl(d.case_number);
+            return {
+              ...d,
+              _citation: buildCitation(
+                d.case_number,
+                d.title || d.case_number,
+                "fi_comp_get_decision",
+                { case_number: d.case_number },
+                sourceUrl,
+              ),
+            };
+          });
+          return textContent({
+            results: enriched,
+            count: enriched.length,
+            _meta: { ...META, tool_name: "fi_comp_search_decisions" },
+          });
         }
 
         case "fi_comp_get_decision": {
@@ -204,7 +233,18 @@ function createMcpServer(): Server {
           if (!decision) {
             return errorContent(`Decision not found: ${parsed.case_number}`);
           }
-          return textContent(decision);
+          const sourceUrl = decision.source_url ?? deriveKkvFallbackUrl(decision.case_number);
+          return textContent({
+            ...decision,
+            _citation: buildCitation(
+              decision.case_number,
+              decision.title || decision.case_number,
+              "fi_comp_get_decision",
+              { case_number: parsed.case_number },
+              sourceUrl,
+            ),
+            _meta: { ...META, tool_name: "fi_comp_get_decision" },
+          });
         }
 
         case "fi_comp_search_mergers": {
@@ -215,7 +255,24 @@ function createMcpServer(): Server {
             outcome: parsed.outcome,
             limit: parsed.limit,
           });
-          return textContent({ results, count: results.length });
+          const enriched = results.map((m) => {
+            const sourceUrl = m.source_url ?? deriveKkvFallbackUrl(m.case_number);
+            return {
+              ...m,
+              _citation: buildCitation(
+                m.case_number,
+                m.title || m.case_number,
+                "fi_comp_get_merger",
+                { case_number: m.case_number },
+                sourceUrl,
+              ),
+            };
+          });
+          return textContent({
+            results: enriched,
+            count: enriched.length,
+            _meta: { ...META, tool_name: "fi_comp_search_mergers" },
+          });
         }
 
         case "fi_comp_get_merger": {
@@ -224,7 +281,18 @@ function createMcpServer(): Server {
           if (!merger) {
             return errorContent(`Merger case not found: ${parsed.case_number}`);
           }
-          return textContent(merger);
+          const sourceUrl = merger.source_url ?? deriveKkvFallbackUrl(merger.case_number);
+          return textContent({
+            ...merger,
+            _citation: buildCitation(
+              merger.case_number,
+              merger.title || merger.case_number,
+              "fi_comp_get_merger",
+              { case_number: parsed.case_number },
+              sourceUrl,
+            ),
+            _meta: { ...META, tool_name: "fi_comp_get_merger" },
+          });
         }
 
         case "fi_comp_list_sectors": {

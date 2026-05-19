@@ -27,8 +27,21 @@ import {
   searchMergers,
   getMerger,
   listSectors,
+  deriveKkvFallbackUrl,
 } from "./db.js";
-import { buildCitation } from "./citation.js";
+import { buildCitation, buildProvenanceCitation } from "./citation.js";
+
+// Publisher / license metadata for the `_meta` envelope on tool responses.
+// Mirrors the manifest attribution contract (Phase 1 PR #673):
+//   publisher: kkv.fi
+//   license:   FI-Statutory-PD (Finnish Statutory PD §9 point 4 — KKV
+//              decisions are administrative decisions; not copyrightable
+//              under Finnish copyright law)
+const META = {
+  publisher: "kkv.fi",
+  license: "FI-Statutory-PD",
+  source_url_base: "https://www.kkv.fi/",
+} as const;
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -228,7 +241,25 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           outcome: parsed.outcome,
           limit: parsed.limit,
         });
-        return textContent({ results, count: results.length });
+        // Per spec §6: every search result carries the provenance envelope
+        // on `_citation`. `deriveKkvFallbackUrl` guarantees a non-empty
+        // source_url so buildProvenanceCitation never refuses here.
+        const enriched = results.map((d) => {
+          const sourceUrl = d.source_url ?? deriveKkvFallbackUrl(d.case_number);
+          return {
+            ...d,
+            _citation: buildProvenanceCitation(
+              { source_url: sourceUrl },
+              META.publisher,
+              META.license,
+            ),
+          };
+        });
+        return textContent({
+          results: enriched,
+          count: enriched.length,
+          _meta: { ...META, tool_name: "fi_comp_search_decisions" },
+        });
       }
 
       case "fi_comp_get_decision": {
@@ -237,16 +268,24 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!decision) {
           return errorContent(`Decision not found: ${parsed.case_number}`);
         }
-        const decisionRecord = decision as unknown as Record<string, unknown>;
+        const sourceUrl = decision.source_url ?? deriveKkvFallbackUrl(decision.case_number);
+        // Per spec §6: provenance envelope on `_citation`; deterministic
+        // canonical_ref envelope on `_entity_citation` (law-mcp §4.9c).
         return textContent({
-          ...decisionRecord,
-          _citation: buildCitation(
-            String(decisionRecord.case_number ?? parsed.case_number),
-            String(decisionRecord.title ?? decisionRecord.case_number ?? parsed.case_number),
+          ...decision,
+          _citation: buildProvenanceCitation(
+            { source_url: sourceUrl },
+            META.publisher,
+            META.license,
+          ),
+          _entity_citation: buildCitation(
+            decision.case_number,
+            decision.title || decision.case_number,
             "fi_comp_get_decision",
             { case_number: parsed.case_number },
-            decisionRecord.url as string | undefined,
+            sourceUrl,
           ),
+          _meta: { ...META, tool_name: "fi_comp_get_decision" },
         });
       }
 
@@ -258,7 +297,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           outcome: parsed.outcome,
           limit: parsed.limit,
         });
-        return textContent({ results, count: results.length });
+        const enriched = results.map((m) => {
+          const sourceUrl = m.source_url ?? deriveKkvFallbackUrl(m.case_number);
+          return {
+            ...m,
+            _citation: buildProvenanceCitation(
+              { source_url: sourceUrl },
+              META.publisher,
+              META.license,
+            ),
+          };
+        });
+        return textContent({
+          results: enriched,
+          count: enriched.length,
+          _meta: { ...META, tool_name: "fi_comp_search_mergers" },
+        });
       }
 
       case "fi_comp_get_merger": {
@@ -267,16 +321,22 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         if (!merger) {
           return errorContent(`Merger case not found: ${parsed.case_number}`);
         }
-        const mergerRecord = merger as unknown as Record<string, unknown>;
+        const sourceUrl = merger.source_url ?? deriveKkvFallbackUrl(merger.case_number);
         return textContent({
-          ...mergerRecord,
-          _citation: buildCitation(
-            String(mergerRecord.case_number ?? parsed.case_number),
-            String(mergerRecord.title ?? mergerRecord.case_number ?? parsed.case_number),
+          ...merger,
+          _citation: buildProvenanceCitation(
+            { source_url: sourceUrl },
+            META.publisher,
+            META.license,
+          ),
+          _entity_citation: buildCitation(
+            merger.case_number,
+            merger.title || merger.case_number,
             "fi_comp_get_merger",
             { case_number: parsed.case_number },
-            mergerRecord.url as string | undefined,
+            sourceUrl,
           ),
+          _meta: { ...META, tool_name: "fi_comp_get_merger" },
         });
       }
 

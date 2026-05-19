@@ -151,3 +151,62 @@ export function buildRegulationCitation(
     lookup: { tool: toolName, args: toolArgs },
   };
 }
+
+// ===========================================================================
+// Provenance citation envelope (spec 2026-05-18 §6)
+//
+// Attribution envelope (publisher + license + per-row source_url +
+// content_hash + ingested_at) attached to every content row returned by
+// search_* / get_* tools. Coexists with the canonical_ref/display_text
+// builder above: provenance on `_citation`, canonical_ref on
+// `_entity_citation` (deterministic-citation-linker pattern, law-mcp
+// golden std §4.9c).
+//
+// Mirrors Ansvar-Systems/french-data-protection-mcp@cb33b98.
+// ===========================================================================
+
+/**
+ * Shape of the row fields buildProvenanceCitation reads from. Any DB row
+ * carrying the source_url provenance column works; content_hash and
+ * ingested_at are optional pending fleet-wide schema rollout (issue #665).
+ */
+export interface ProvenanceRow {
+  source_url: string;
+  content_hash?: string | null;
+  ingested_at?: string | null;
+}
+
+export interface ProvenanceCitation {
+  source_url: string;
+  publisher: string;
+  license: string;
+  content_hash?: string;
+  ingested_at?: string;
+}
+
+/**
+ * Build a provenance citation envelope from a content row.
+ *
+ * Per the No Silent Fallbacks rule (CLAUDE.md): throws if source_url is
+ * empty / missing — refusing to emit beats emitting a citation that points
+ * nowhere.
+ */
+export function buildProvenanceCitation(
+  row: ProvenanceRow,
+  publisher: string,
+  license: string,
+): ProvenanceCitation {
+  if (!row || !row.source_url) {
+    throw new Error(
+      `buildProvenanceCitation: row has empty source_url — refusing to emit ` +
+        `(No Silent Fallbacks rule; CLAUDE.md). row=${JSON.stringify(row)}`,
+    );
+  }
+  return {
+    source_url: row.source_url,
+    publisher,
+    license,
+    ...(row.content_hash && { content_hash: row.content_hash }),
+    ...(row.ingested_at && { ingested_at: row.ingested_at }),
+  };
+}

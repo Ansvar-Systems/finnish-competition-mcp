@@ -45,6 +45,7 @@
     "seed": "npx tsx scripts/seed-sample.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
     "test:contract": "echo \"No contract tests yet\" && exit 0"
   },
   "devDependencies": {

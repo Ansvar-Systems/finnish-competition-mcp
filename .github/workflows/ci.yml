@@ -124,7 +124,7 @@ jobs:
         run: |
           # Detect DB path from build:db script; fall back to default.
           DB_PATH=$(jq -r '.scripts["build:db"] // empty' package.json | grep -oE 'data/[a-zA-Z0-9_-]+\.db' | head -1)
-          DB_PATH=${DB_PATH:-data/kkv.db}
+          DB_PATH=${DB_PATH:-data/database.db}
           if [ -f "$DB_PATH" ]; then
             # integrity_check is the meaningful correctness check.
             # journal_mode is a deployment-hygiene preference; some MCPs ship WAL mode
@@ -137,15 +137,20 @@ jobs:
       - name: Coverage consistency
         run: |
           if jq -e '.scripts["coverage:verify"]' package.json >/dev/null 2>&1; then
-            # coverage:verify typically needs a built DB; gate on DB existence
-            # rather than just script presence (auto-ingested MCPs may have the
-            # script but no DB in CI because build:db skipped or wasn't defined).
+            # coverage:verify needs BOTH a built DB AND coverage.json to do
+            # anything meaningful. Gate on:
+            #   * DB exists and is >1024 bytes (release-pattern MCPs ship a
+            #     0-byte stub; auto-ingested MCPs may not produce a DB in CI
+            #     when the change set didn't trigger build:db).
+            #   * coverage.json exists (the `coverage:update` script produces
+            #     it; we don't run that in CI, so an MCP that doesn't commit
+            #     a coverage snapshot has nothing to verify against).
             DB_PATH=$(jq -r '.scripts["build:db"] // empty' package.json | grep -oE 'data/[a-zA-Z0-9_-]+\.db' | head -1)
-            DB_PATH=${DB_PATH:-data/kkv.db}
-            if [ -f "$DB_PATH" ]; then
+            DB_PATH=${DB_PATH:-data/database.db}
+            if [ -f "$DB_PATH" ] && [ "$(wc -c < "$DB_PATH")" -gt 1024 ] && [ -f coverage.json ]; then
               npm run coverage:verify
             else
-              echo "coverage:verify present but no DB at $DB_PATH — skipping (build:db did not produce one)"
+              echo "coverage:verify present but no usable DB+coverage.json pair — skipping (DB at $DB_PATH and/or coverage.json missing)"
             fi
           else
             echo "coverage:verify script not present — skipping"

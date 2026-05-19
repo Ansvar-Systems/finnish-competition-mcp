@@ -75,6 +75,25 @@ jobs:
         with:
           lfs: true  # repos that ship data/database.db via Git LFS need this
 
+      - name: Lint Dockerfile (Phase B regression gate)
+        # Catches the 2026-05-09 sector-MCP binding outage class: a Dockerfile
+        # that re-runs `npm ci --ignore-scripts` in its runtime stage strips
+        # better-sqlite3's postinstall (which builds the native .node binding);
+        # every SQLite tool call then fails with `Could not locate the bindings
+        # file` at runtime. Multi-stage builds with `COPY --from=builder
+        # /app/node_modules` are the fix. See spec §3.1.1.
+        #
+        # Vendored from arch-docs scripts/lint-mcp-dockerfile.py by
+        # apply-golden-standard.sh. Backwards-compatible: if the script isn't
+        # present yet (older repos that haven't refreshed), the step warns
+        # but doesn't fail — re-apply golden standard to enable the gate.
+        run: |
+          if [ -f .github/scripts/lint-dockerfile.py ]; then
+            python3 .github/scripts/lint-dockerfile.py Dockerfile
+          else
+            echo "::warning::Phase B Dockerfile lint script not vendored at .github/scripts/lint-dockerfile.py — re-run scripts/apply-golden-standard.sh from arch-docs to enable the regression gate."
+          fi
+
       - name: Provision database from GitHub Release if missing
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -122,6 +141,20 @@ jobs:
                 [ -e "$gz" ] || continue
                 gunzip -f "$gz"
               done
+              # Flip journal_mode to DELETE on every provisioned .db before bake.
+              # Release-asset DBs that ship in WAL mode (byte 18 = 0x02) create
+              # latent read-only-FS bugs on container recreate (`docker compose
+              # up -d --remove-orphans` triggers a fresh container that can't
+              # write the -wal/-shm shadow files). Per memory
+              # feedback_mcp_db_journal_delete_for_read_only_fs_2026_05_14 and
+              # feedback_compose_recreate_surfaces_latent_image_regressions_2026_05_17.
+              # sqlite3 is preinstalled on ubuntu-latest runners; the PRAGMA is
+              # idempotent (no-op if already DELETE).
+              for db in data/*.db; do
+                [ -e "$db" ] || continue
+                mode=$(sqlite3 "$db" 'PRAGMA journal_mode=DELETE;' 2>/dev/null || true)
+                echo "Journal mode for $db: $mode"
+              done
               # Normalize filename so the Dockerfile's COPY succeeds. The Dockerfile
               # may reference data/database.db (legacy default) or a jurisdiction-
               # specific path like data/ftnet.db (db_release_path manifest pattern).
@@ -149,7 +182,15 @@ jobs:
       - name: Set image name from package.json
         id: meta
         run: |
-          NAME=$(node -e "console.log(require('./package.json').name.replace('@ansvar/', ''))")
+          # Strip any leading @scope/ prefix so `@ansvar/foo` and
+          # `@ansvar-systems/foo` (and any future scope) both yield `foo`.
+          # npm distribution is decommissioned (ADR-021), so the scope is
+          # arbitrary. The previous hard-coded `@ansvar/` replace broke on
+          # the 2026-05-14 swedish-civil-protection canary which had
+          # `@ansvar-systems/`, producing the invalid GHCR tag
+          # `ghcr.io/ansvar-systems/@ansvar-systems/foo:latest`. The regex
+          # form fixes the bug class fleet-wide.
+          NAME=$(node -e "console.log(require('./package.json').name.replace(/^@[^/]+\//, ''))")
           VERSION=$(node -e "console.log(require('./package.json').version)")
           echo "image_name=${NAME}" >> $GITHUB_OUTPUT
           echo "version=${VERSION}" >> $GITHUB_OUTPUT

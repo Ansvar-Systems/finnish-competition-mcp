@@ -63,7 +63,7 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.26.0",
-    "better-sqlite3": "^9.4.3",
+    "better-sqlite3": "^12.11.1",
     "zod": "^3.22.4"
   }
 }
